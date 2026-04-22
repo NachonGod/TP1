@@ -1,0 +1,101 @@
+[
+  {
+    "fecha": "2026-04-22 07:31:57",
+    "resultados": [
+      {
+        "jugador": "Jugador1",
+        "tipo": "Humano",
+        "score": 65,
+        "longitud": 68,
+        "vivo": true
+      },
+      {
+        "jugador": "BOT 2",
+        "tipo": "IA",
+        "score": 25,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 3",
+        "tipo": "IA",
+        "score": 22,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 4",
+        "tipo": "IA",
+        "score": 19,
+        "longitud": 0,
+        "vivo": false
+      }
+    ]
+  },
+  {
+    "fecha": "2026-04-22 07:41:47",
+    "resultados": [
+      {
+        "jugador": "Jugador1",
+        "tipo": "Humano",
+        "score": 113,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 2",
+        "tipo": "IA",
+        "score": 74,
+        "longitud": 76,
+        "vivo": true
+      },
+      {
+        "jugador": "BOT 4",
+        "tipo": "IA",
+        "score": 22,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 3",
+        "tipo": "IA",
+        "score": 20,
+        "longitud": 0,
+        "vivo": false
+      }
+    ]
+  },
+  {
+    "fecha": "2026-04-22 08:48:44",
+    "resultados": [
+      {
+        "jugador": "Jugador1",
+        "tipo": "Humano",
+        "score": 146,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 2",
+        "tipo": "IA",
+        "score": 108,
+        "longitud": 110,
+        "vivo": true
+      },
+      {
+        "jugador": "BOT 4",
+        "tipo": "IA",
+        "score": 56,
+        "longitud": 0,
+        "vivo": false
+      },
+      {
+        "jugador": "BOT 3",
+        "tipo": "IA",
+        "score": 17,
+        "longitud": 0,
+        "vivo": false
+      }
+    ]
+  }
+]

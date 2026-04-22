@@ -1,14 +1,3 @@
-"""
-Slither de los papus
-
-Controles:
-  Jugador 1 : MOUSE (mover el cursor para dirigir) | Click izquierdo = TURBO
-  Jugador 2 : W A S D | Doble W = TURBO
-  Jugador 3 : Flechas | Doble ↑ = TURBO
-  Jugador 4 : T F G H | Doble T = TURBO
-  ESC / P   : Pausar
-"""
-
 import pygame, math, random, sys, json, os
 from datetime import datetime
 
@@ -32,10 +21,10 @@ RADIUS_BASE      = 9
 RADIUS_MAX       = 22
 
 # ── Turbo sistema ─────────────────────────────────────────────────────────────
-TURBO_DURATION_SEC       = 3.0    # cuánto dura el turbo activo
-TURBO_COOLDOWN_SEC       = 10.0   # cooldown tras usarlo
-TURBO_DOUBLE_WINDOW      = 300    # ms para doble pulsación teclado
-FOOD_COOLDOWN_REDUCE_SEC = 1.0    # segundos que reduce el cooldown al comer
+TURBO_DURATION_SEC       = 3.0
+TURBO_COOLDOWN_SEC       = 10.0
+TURBO_DOUBLE_WINDOW      = 300
+FOOD_COOLDOWN_REDUCE_SEC = 1.0
 
 SCORES_FILE = "resultados.json"
 
@@ -44,7 +33,6 @@ BORDER_COL = (255, 45, 120)
 TEXT_COL   = (200, 255, 220)
 DIVIDER    = (0, 255, 136)
 
-# ── Paleta de colores disponibles ────────────────────────────────────────────
 AVAILABLE_COLORS = [
     ("Verde",       (0, 255, 136),    (0, 160, 80)),
     ("Rosa",        (255, 105, 180),  (180, 50, 110)),
@@ -146,18 +134,20 @@ class Snake:
         self.angle        = angle
         self.target_angle = angle
         self.ai_timer     = 0
-        self.ai_wander_angle = angle
-        self.ai_wander_timer = 0
-        self.ai_stuck_timer  = 0
-        self.ai_last_pos     = [x, y]
+
+        # ── IA mejorada: estado interno ───────────────────────────────────────
+        self.ai_wander_angle  = angle
+        self.ai_wander_timer  = 0
+        self.ai_stuck_timer   = 0
+        self.ai_last_pos      = [x, y]
+        self.ai_evasion_timer = 0          # frames que dura la evasión activa
+        self.ai_evasion_angle = angle      # ángulo de evasión elegido
 
         # ── Sistema de turbo ──────────────────────────────────────────────────
         self.turbo               = False
-        self._turbo_timer        = 0.0   # segundos restantes de turbo activo
-        self._turbo_cooldown     = 0.0   # segundos restantes de cooldown
-        # Doble-pulsación teclado
+        self._turbo_timer        = 0.0
+        self._turbo_cooldown     = 0.0
         self._last_turbo_key_time = 0
-        # Mouse: click izquierdo
         self._mouse_turbo_held    = False
 
         if color_entry:
@@ -197,7 +187,6 @@ class Snake:
     def current_speed(self):
         return SPEED_TURBO if self.turbo else SPEED
 
-    # ── Estado del turbo ──────────────────────────────────────────────────────
     @property
     def turbo_ready(self):
         return self._turbo_cooldown <= 0 and not self.turbo
@@ -216,18 +205,15 @@ class Snake:
         self.turbo        = True
         self._turbo_timer = TURBO_DURATION_SEC
 
-    # ── Activación por teclado (doble pulsación) ──────────────────────────────
     def try_activate_turbo_key(self, now_ms):
         dt = now_ms - self._last_turbo_key_time
         if dt < TURBO_DOUBLE_WINDOW:
             self._activate_turbo()
         self._last_turbo_key_time = now_ms
 
-    # ── Turbo mouse: click izquierdo ──────────────────────────────────────────
     def press_turbo_mouse(self):
         self._activate_turbo()
 
-    # ── Reducir cooldown al comer ─────────────────────────────────────────────
     def on_eat(self):
         self._turbo_cooldown = max(0.0, self._turbo_cooldown - FOOD_COOLDOWN_REDUCE_SEC)
 
@@ -235,24 +221,21 @@ class Snake:
     def update(self, keys, snakes, food_list, cam_x, cam_y, viewport):
         if not self.alive: return
 
-        dt = 1.0 / FPS  # delta time en segundos
+        dt = 1.0 / FPS
 
-        # ── Actualizar timer de turbo activo ──────────────────────────────────
         if self.turbo:
             self._turbo_timer -= dt
             if self._turbo_timer <= 0:
                 self.turbo           = False
                 self._turbo_timer    = 0.0
-                self._turbo_cooldown = TURBO_COOLDOWN_SEC  # empieza cooldown
+                self._turbo_cooldown = TURBO_COOLDOWN_SEC
 
-        # ── Actualizar cooldown ───────────────────────────────────────────────
         if not self.turbo and self._turbo_cooldown > 0:
             self._turbo_cooldown = max(0.0, self._turbo_cooldown - dt)
 
         if self.is_ai:
             self._ai_decide(snakes, food_list)
-            # IA activa turbo automáticamente si puede (raramente)
-            if self.turbo_ready and random.random() < 0.005:
+            if self.turbo_ready and random.random() < 0.003:
                 self._activate_turbo()
         elif self.use_mouse:
             self._mouse_control(cam_x, cam_y, viewport)
@@ -271,8 +254,6 @@ class Snake:
         ny = self.head[1] + math.sin(self.angle) * spd
         self.segments.insert(0, [nx, ny])
 
-        # Recortar siempre al largo objetivo — turbo o no.
-        # El turbo solo cambia la velocidad, nunca la longitud.
         target_len = INITIAL_SEGMENTS + self.score * 4
         while len(self.segments) > target_len:
             self.segments.pop()
@@ -309,42 +290,122 @@ class Snake:
         elif left:           self.target_angle =  math.pi
         elif right:          self.target_angle =  0.0
 
+    # ══════════════════════════════════════════════════════════════════════════
+    #  IA MEJORADA
+    # ══════════════════════════════════════════════════════════════════════════
     def _ai_decide(self, snakes, food_list):
         hx, hy = self.head
-        margin = 200
+        r = self.radius
 
-        near_border = False
-        if   hx < margin:         self.target_angle = 0.0;           near_border = True
-        elif hx > WORLD-margin:   self.target_angle = math.pi;       near_border = True
-        elif hy < margin:         self.target_angle = math.pi/2;     near_border = True
-        elif hy > WORLD-margin:   self.target_angle = -math.pi/2;    near_border = True
-        if near_border:
-            self.ai_stuck_timer = 0
+        # ── 1. BORDE: margen amplio y corrección suave ────────────────────────
+        BORDER_HARD = 120   # distancia crítica → giro inmediato
+        BORDER_SOFT = 280   # distancia de advertencia → sesgo suave
+        border_push_x = 0.0
+        border_push_y = 0.0
+        hard_border = False
+
+        if hx < BORDER_HARD:
+            self.target_angle = 0.0; hard_border = True
+        elif hx > WORLD - BORDER_HARD:
+            self.target_angle = math.pi; hard_border = True
+        elif hy < BORDER_HARD:
+            self.target_angle = math.pi / 2; hard_border = True
+        elif hy > WORLD - BORDER_HARD:
+            self.target_angle = -math.pi / 2; hard_border = True
+        else:
+            # Sesgo suave antes del borde duro
+            if hx < BORDER_SOFT:         border_push_x += (BORDER_SOFT - hx) / BORDER_SOFT
+            if hx > WORLD - BORDER_SOFT: border_push_x -= (hx - (WORLD - BORDER_SOFT)) / BORDER_SOFT
+            if hy < BORDER_SOFT:         border_push_y += (BORDER_SOFT - hy) / BORDER_SOFT
+            if hy > WORLD - BORDER_SOFT: border_push_y -= (hy - (WORLD - BORDER_SOFT)) / BORDER_SOFT
+
+        if hard_border:
+            self.ai_evasion_timer = 0
+            self.ai_wander_timer  = 0
             return
 
-        danger_angle = None
-        min_danger   = float("inf")
+        # ── 2. EVASIÓN ACTIVA: si estamos en medio de una maniobra ────────────
+        if self.ai_evasion_timer > 0:
+            self.target_angle = self.ai_evasion_angle
+            self.ai_evasion_timer -= 1
+            # Sumar sesgo de borde por si aplica
+            if border_push_x or border_push_y:
+                blended = math.atan2(
+                    math.sin(self.ai_evasion_angle) + border_push_y,
+                    math.cos(self.ai_evasion_angle) + border_push_x
+                )
+                self.target_angle = blended
+            return
+
+        # ── 3. RAYCAST HACIA ADELANTE: detectar peligros ──────────────────────
+        #   Probamos el ángulo actual + varios desvíos y puntuamos el más libre
+        LOOK_AHEAD   = 200          # distancia de mirada hacia adelante (px)
+        LOOK_STEPS   = 10           # puntos de muestreo a lo largo del rayo
+        PROBE_ANGLES = [0, 0.18, -0.18, 0.40, -0.40, 0.65, -0.65,
+                        0.90, -0.90, math.pi*0.7, -math.pi*0.7, math.pi]
+
+        # Construir lista de segmentos peligrosos (excluye los primeros propios)
+        danger_segs = []
+        OWN_SKIP = max(25, int(r * 3))   # ignorar N segmentos propios desde la cabeza
         for s in snakes:
-            if s is self or not s.alive: continue
-            for seg in [s.head] + s.segments[1:min(15, len(s.segments))]:
-                d = math.hypot(hx-seg[0], hy-seg[1])
-                if d < 180 and d < min_danger:
-                    min_danger   = d
-                    danger_angle = math.atan2(hy-seg[1], hx-seg[0])
-        if danger_angle is not None:
-            self.target_angle    = danger_angle
-            self.ai_stuck_timer  = 0
-            self.ai_wander_timer = 0
-            return
+            if not s.alive or not s.segments:
+                continue
+            start_i = OWN_SKIP if (s is self) else 0
+            for seg in s.segments[start_i:]:
+                danger_segs.append((seg[0], seg[1], s.radius))
 
+        def score_angle(test_angle):
+            """Puntuación: 0.0 = libre, 1.0 = colisión segura."""
+            worst = 0.0
+            for step in range(1, LOOK_STEPS + 1):
+                dist_ahead = LOOK_AHEAD * step / LOOK_STEPS
+                px = hx + math.cos(test_angle) * dist_ahead
+                py = hy + math.sin(test_angle) * dist_ahead
+                # Penalizar borde
+                margin_penalty = 0.0
+                if px < BORDER_SOFT or px > WORLD - BORDER_SOFT or \
+                   py < BORDER_SOFT or py > WORLD - BORDER_SOFT:
+                    margin_penalty = 0.4 * (1 - step / LOOK_STEPS)
+                # Penalizar colisión con cuerpos
+                for sx, sy, sr in danger_segs:
+                    d = math.hypot(px - sx, py - sy)
+                    if d < r + sr + 4:
+                        hit = 1.0 - (step - 1) / LOOK_STEPS  # más urgente cuanto más cerca
+                        worst = max(worst, hit)
+                        break
+                worst = max(worst, margin_penalty)
+            return worst
+
+        # Evaluar todos los ángulos probe
+        best_angle = self.angle
+        best_score = score_angle(self.angle)  # coste del camino actual
+
+        if best_score > 0.15:  # hay algún peligro → buscar alternativa
+            for delta in PROBE_ANGLES[1:]:
+                candidate = self.angle + delta
+                s = score_angle(candidate)
+                if s < best_score:
+                    best_score = s
+                    best_angle = candidate
+
+            # Si encontramos algo mejor, activar evasión
+            if best_angle != self.angle:
+                self.ai_evasion_angle = best_angle
+                self.ai_evasion_timer = random.randint(18, 36)
+                self.target_angle     = best_angle
+                self.ai_wander_timer  = 0
+                return
+
+        # ── 4. WANDER: si estamos dando vueltas sin movernos ──────────────────
         self.ai_stuck_timer += 1
         if self.ai_stuck_timer >= 90:
             dx = hx - self.ai_last_pos[0]
             dy = hy - self.ai_last_pos[1]
             if math.hypot(dx, dy) < SPEED * 15:
-                self.ai_wander_angle = self.angle + random.choice([-1,1]) * random.uniform(math.pi/2, math.pi*0.8)
-                self.ai_wander_timer = random.randint(40, 80)
-            self.ai_last_pos   = [hx, hy]
+                self.ai_wander_angle = self.angle + random.choice([-1, 1]) * \
+                    random.uniform(math.pi / 3, math.pi * 0.7)
+                self.ai_wander_timer = random.randint(30, 60)
+            self.ai_last_pos    = [hx, hy]
             self.ai_stuck_timer = 0
 
         if self.ai_wander_timer > 0:
@@ -352,16 +413,47 @@ class Snake:
             self.ai_wander_timer -= 1
             return
 
+        # ── 5. BUSCAR COMIDA: apuntar a la más cercana y "libre" ──────────────
         self.ai_timer -= 1
         if self.ai_timer <= 0:
-            best, best_d = None, float("inf")
+            best_food, best_val = None, -float("inf")
             for f in food_list:
-                d = math.hypot(hx-f["x"], hy-f["y"])
-                if d < best_d: best_d, best = d, f
-            if best:
-                self.target_angle = math.atan2(best["y"]-hy, best["x"]-hx)
-            self.ai_timer = random.randint(6, 14)
+                d = math.hypot(hx - f["x"], hy - f["y"])
+                if d > 1200:
+                    continue  # ignorar comida muy lejana
+                food_angle = math.atan2(f["y"] - hy, f["x"] - hx)
+                # Penalizar si el camino a la comida también tiene peligro
+                danger_penalty = score_angle(food_angle) * 300
+                val = -d - danger_penalty
+                if val > best_val:
+                    best_val  = val
+                    best_food = f
 
+            if best_food:
+                food_angle = math.atan2(best_food["y"] - hy, best_food["x"] - hx)
+                # Mezclar con sesgo de borde si aplica
+                if border_push_x or border_push_y:
+                    food_angle = math.atan2(
+                        math.sin(food_angle) + border_push_y * 0.5,
+                        math.cos(food_angle) + border_push_x * 0.5
+                    )
+                self.target_angle = food_angle
+            elif border_push_x or border_push_y:
+                self.target_angle = math.atan2(
+                    math.sin(self.angle) + border_push_y,
+                    math.cos(self.angle) + border_push_x
+                )
+
+            self.ai_timer = random.randint(8, 18)
+
+        # Sesgo de borde suave incluso cuando no actualizamos el objetivo
+        elif border_push_x or border_push_y:
+            self.target_angle = math.atan2(
+                math.sin(self.target_angle) + border_push_y * 0.3,
+                math.cos(self.target_angle) + border_push_x * 0.3
+            )
+
+    # ─────────────────────────────────────────────────────────────────────────
     def draw(self, surf, cam_x, cam_y):
         if not self.alive or not self.segments: return
         sw, sh = surf.get_size()
